@@ -20,7 +20,7 @@ function SocketClient(socketMock) {
      */
     this.on = function(eventKey, callback) {
         this.eventCallbacks[eventKey] = callback
-    } 
+    }
 
     /**
      * Emit an event to the server client
@@ -44,7 +44,7 @@ function SocketClient(socketMock) {
         if (typeof this.eventCallbacks[eventKey] === 'function') {
             debug("Event %s on client side is dispatched with payload %s", eventKey, JSON.stringify(payload))
             this.eventCallbacks[eventKey](payload)
-        }   
+        }
     }
 }
 
@@ -113,7 +113,7 @@ function SocketMock () {
     this.broadcast.to = function(roomKey) {
         return {
             /**
-             * Emitting 
+             * Emitting
              * @param  {[type]} eventName [description]
              * @param  {[type]} payload   [description]
              */
@@ -122,6 +122,12 @@ function SocketMock () {
                     self.generalCallbacks[eventKey](createPayload(payload), roomKey)
                 }
             }
+        }
+    }
+
+    this.broadcast.emit = function(eventKey, payload) {
+        if (self.generalCallbacks[eventKey]) {
+            self.generalCallbacks[eventKey](createPayload(payload), '*')
         }
     }
 
