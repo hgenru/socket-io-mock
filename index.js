@@ -36,6 +36,9 @@ function SocketMock () {
     this.socketClient = new SocketClient(this)
     this.generalCallbacks = {}
 
+    this.broadcastLog = [];
+    this.emitLog = [];
+
     // self assign, for avoiding this clashing with objects
     var self = this
 
@@ -72,6 +75,7 @@ function SocketMock () {
      * @param  {object} payload -- Additional payload
      */
     this.emit = function(eventKey, payload) {
+        self.emitLog.push({name: eventKey, data: payload});
         if (typeof doneCallback === 'function') {
             doneCallback(
                 self.socketClient.fireEvent(eventKey, createPayload(payload))
@@ -103,6 +107,7 @@ function SocketMock () {
              * @param  {[type]} payload   [description]
              */
             emit: function(eventKey, payload) {
+                self.broadcastLog.push({name: eventKey, data: payload, room: roomKey})
                 if (self.generalCallbacks[eventKey]) {
                     self.generalCallbacks[eventKey](createPayload(payload), roomKey)
                 }
@@ -111,6 +116,7 @@ function SocketMock () {
     }
 
     this.broadcast.emit = function(eventKey, payload) {
+        self.broadcastLog.push({name: eventKey, data: payload});
         if (self.generalCallbacks[eventKey]) {
             self.generalCallbacks[eventKey](createPayload(payload), '*')
         }
