@@ -1,50 +1,28 @@
 'use strict'
-
 var debug = require('debug')('chat:tests:fixtures:socketmock')
+var EventEmitter = require('eventemitter2').EventEmitter2
 
 var createPayload = function(object) {
+    object = object || {};
     return JSON.parse(JSON.stringify(object))
 }
 
-/**
- * A mocking class for the Socket IO Client side
- */
-function SocketClient(socketMock) {
-
-    this.eventCallbacks = []
-
-    /**
-     * Attach event to emit
-     * @param  {string} eventKey -- The event key that needs to be attached
-     * @param  {Function} callback
-     */
-    this.on = function(eventKey, callback) {
-        this.eventCallbacks[eventKey] = callback
+class SocketClient extends EventEmitter {
+    constructor(socketMock) {
+        super();
+        this.newListener = false;
+        this.socketMock = socketMock;
     }
 
-    /**
-     * Emit an event to the server client
-     * @param  {string}   eventKey -- The event key that needs to be attached
-     * @param  {object}   payload  -- The payload that needs to be attached to the emit
-     * @param  {function} callback
-     */
-    this.emit = function(eventKey, payload, callback) {
-        callback = callback || function() { return true }
-        callback(socketMock.emitEvent(eventKey, payload))
+    emit() {
+        return this.socketMock
+            .emitEvent
+            .apply(this.socketMock, arguments)
     }
 
-    /**
-     * Fire an event to the server
-     * @param  {string}   eventKey -- The event key that needs to be attached
-     * @param  {object}   payload -- The payload that needs to be attached to the emit
-     * @param  {Function} callback
-     */
-    this.fireEvent = function(eventKey, payload, doneCallback) {
-        // Check if callback is set
-        if (typeof this.eventCallbacks[eventKey] === 'function') {
-            debug("Event %s on client side is dispatched with payload %s", eventKey, JSON.stringify(payload))
-            this.eventCallbacks[eventKey](payload)
-        }
+    fireEvent(event, data) {
+        debug("Event %s on client side is dispatched with payload %s", event, JSON.stringify(data))
+        return super.emit.call(this, event, data)
     }
 }
 
@@ -57,11 +35,15 @@ function SocketMock () {
     this.eventCallbacks = {}
     this.socketClient = new SocketClient(this)
     this.generalCallbacks = {}
-    this.emitLog = [];
-    this.broadcastLog = [];
 
     // self assign, for avoiding this clashing with objects
     var self = this
+
+    this.socketClient.onAny(function(data) {
+        var playload = createPayload(data);
+        var handler = self.eventCallbacks[this.event]
+        if (handler) { handler(playload); }
+    });
 
     /**
      * Emit an event to the server (used by client)
@@ -72,7 +54,6 @@ function SocketMock () {
     this.emitEvent = function(eventKey, payload, roomKey) {
         if (this.eventCallbacks[eventKey]) {
             debug("Event %s on server side is dispatched with payload %s", eventKey, JSON.stringify(payload))
-
             return this.eventCallbacks[eventKey](createPayload(payload))
         }
     }
@@ -91,9 +72,10 @@ function SocketMock () {
      * @param  {object} payload -- Additional payload
      */
     this.emit = function(eventKey, payload) {
-        self.emitLog.push({name: eventKey, data: payload});
         if (typeof doneCallback === 'function') {
-            doneCallback(self.socketClient.emit(eventKey, createPayload(payload)))
+            doneCallback(
+                self.socketClient.fireEvent(eventKey, createPayload(payload))
+            )
         }
         else {
             self.socketClient.fireEvent(eventKey, payload)
@@ -121,7 +103,6 @@ function SocketMock () {
              * @param  {[type]} payload   [description]
              */
             emit: function(eventKey, payload) {
-                self.broadcastLog.push({name: eventKey, data: payload, room: roomKey})
                 if (self.generalCallbacks[eventKey]) {
                     self.generalCallbacks[eventKey](createPayload(payload), roomKey)
                 }
@@ -130,7 +111,6 @@ function SocketMock () {
     }
 
     this.broadcast.emit = function(eventKey, payload) {
-        self.broadcastLog.push({name: eventKey, data: payload});
         if (self.generalCallbacks[eventKey]) {
             self.generalCallbacks[eventKey](createPayload(payload), '*')
         }
@@ -149,7 +129,7 @@ function SocketMock () {
      * @param  {string} roomKey The room you want to leave
      */
     this.leave = function(roomKey) {
-        var index = this.joinedRooms.indexOf(roomKey);
+        var index = this.joinedRooms.indexOf(roomKey)
         this.joinedRooms.splice(index, 1)
     }
 
